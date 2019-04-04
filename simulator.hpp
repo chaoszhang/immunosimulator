@@ -131,31 +131,44 @@ public:
 	}
 	
 	int randomEvent(double totalOccupancy, double precision){
-		int n = getBatchSize(precision);
-		double _r = uniform(generator) * ((birthRate * birthMutationProbability + lifeTimeMutationRate) * n
-			+ (birthRate * (1 - birthMutationProbability) + naturalDeathRate + occupancyDeathRateFactor * totalOccupancy));
-		if (_r < (birthRate * birthMutationProbability + lifeTimeMutationRate) * n){
-			if (_r < lifeTimeMutationRate * n) return LIFE_TIME_MUTATION_EVENT;
-			else return BIRTH_MUTATION_EVENT;
-		}
-		else{
-			double b = birthRate * (1 - birthMutationProbability), d = naturalDeathRate + occupancyDeathRateFactor * totalOccupancy;
-			double maxbd = max(b, d);
-			b /= maxbd;
-			d /= maxbd;
-			if (b == d){
-				if (uniform(generator) * n < 1){
-					if (uniform(generator) < 0.5) return REGULAR_BIRTH_EVENT;
-					else return DEATH_EVENT;
+		if (precision == 0){
+			double _r = uniform(generator) * (birthRate + lifeTimeMutationRate + naturalDeathRate + occupancyDeathRateFactor * totalOccupancy);
+			if (_r < birthRate + lifeTimeMutationRate){
+				if (_r < birthRate){
+					if (_r < birthRate * birthMutationProbability) return BIRTH_MUTATION_EVENT;
+					else return REGULAR_BIRTH_EVENT;
 				}
-				else return NO_EVENT;
+				else return LIFE_TIME_MUTATION_EVENT;
 			}
-			else {
-				if (uniform(generator) * abs(pow(b, n) - pow(d, n)) * (b + d) < (pow(b, n) + pow(d, n)) * abs(b - d)){
-					if (uniform(generator) * (pow(b, n) + pow(d, n)) < pow(b, n)) return REGULAR_BIRTH_EVENT;
-					else return DEATH_EVENT;
+			else return DEATH_EVENT;
+		}
+		else {
+			int n = getBatchSize(precision);
+			double _r = uniform(generator) * ((birthRate * birthMutationProbability + lifeTimeMutationRate) * n
+				+ (birthRate * (1 - birthMutationProbability) + naturalDeathRate + occupancyDeathRateFactor * totalOccupancy));
+			if (_r < (birthRate * birthMutationProbability + lifeTimeMutationRate) * n){
+				if (_r < lifeTimeMutationRate * n) return LIFE_TIME_MUTATION_EVENT;
+				else return BIRTH_MUTATION_EVENT;
+			}
+			else{
+				double b = birthRate * (1 - birthMutationProbability), d = naturalDeathRate + occupancyDeathRateFactor * totalOccupancy;
+				double maxbd = max(b, d);
+				b /= maxbd;
+				d /= maxbd;
+				if (b == d){
+					if (uniform(generator) * n < 1){
+						if (uniform(generator) < 0.5) return REGULAR_BIRTH_EVENT;
+						else return DEATH_EVENT;
+					}
+					else return NO_EVENT;
 				}
-				else return NO_EVENT;
+				else {
+					if (uniform(generator) * abs(pow(b, n) - pow(d, n)) * (b + d) < (pow(b, n) + pow(d, n)) * abs(b - d)){
+						if (uniform(generator) * (pow(b, n) + pow(d, n)) < pow(b, n)) return REGULAR_BIRTH_EVENT;
+						else return DEATH_EVENT;
+					}
+					else return NO_EVENT;
+				}
 			}
 		}
 	}
