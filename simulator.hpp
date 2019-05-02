@@ -434,14 +434,10 @@ public:
 	}
 	
 	vector<tuple<Population*, Population*, long long> > sample(int sampleSize){
-		long long popCnt = 0;
 		IntervalTree sampleIntervalTree;
 		for (Population* p: popList){
 			if (p == nullptr) sampleIntervalTree.append(0);
-			else {
-				sampleIntervalTree.append(p->getSize());
-				popCnt += p->getSize();
-			}
+			else sampleIntervalTree.append(p->getSize());
 		}
 		unordered_map<int, long long> sampleCnt;
 		for (int i = 0; i < sampleSize; i++){
@@ -455,7 +451,10 @@ public:
 		while (!q.empty()){
 			tuple<Population*, Population*, long long> a = q.top();
 			q.pop();
-			if (!q.empty() && PopulationPointerEq()(get<1>(a), get<1>(q.top()))){
+			if (!q.empty() && PopulationPointerEq()(get<0>(a), get<0>(q.top()))){
+				long long cnt = get<2>(q.top());
+				q.pop();
+				q.push(make_tuple(get<0>(a), get<1>(a), get<2>(a) + cnt));
 				continue;
 			}
 			else {
@@ -464,6 +463,7 @@ public:
 					q.push(make_tuple(p, p, 0));
 					result.push_back(make_tuple(get<0>(a), p, get<2>(a)));
 				}
+				else if (get<2>(a) != 0) result.push_back(make_tuple(get<0>(a), get<0>(a), get<2>(a)));
 			}
 		}
 		return result;
@@ -511,7 +511,9 @@ public:
 			else {
 				Population* p = get<1>(a)->getAncestor();
 				if (p != nullptr) q.push(make_tuple(get<0>(a), p, get<2>(a)));
-				else if (!PopulationPointerEq()(get<0>(a), get<1>(a))) result.push_back(make_tuple(get<0>(a), get<1>(a), get<2>(a)));
+				else {
+					if (!PopulationPointerEq()(get<0>(a), get<1>(a))) result.push_back(make_tuple(get<0>(a), get<1>(a), get<2>(a)));
+				}
 			}
 		}
 		return result;
