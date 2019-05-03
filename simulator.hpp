@@ -122,11 +122,13 @@ public:
 	}
 	
 	double getOccupancyIndependentEventRate(double precision) const{
+		if (precision == 0) return (birthRate + lifeTimeMutationRate + naturalDeathRate) * size;
 		return ((birthRate * birthMutationProbability + lifeTimeMutationRate)
 			+ (birthRate * (1 - birthMutationProbability) + naturalDeathRate) / getBatchSize(precision)) * size;
 	}
 	
 	double getOccupancyEventRateFactor(double precision) const{
+		if (precision == 0) return occupancyDeathRateFactor * size;
 		return occupancyDeathRateFactor * size / getBatchSize(precision);
 	}
 	
