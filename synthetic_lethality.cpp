@@ -22,13 +22,13 @@ struct SyntheticLethalTaxon::Model::Parameters{
 };
 
 struct SyntheticLethalTaxon::Model::Impl{
-	Impl(const Parameters p, const default_random_engine& g){
+	Impl(const Parameters p){
 		//TODO
 	}
 	//TODO
 };
 
-SyntheticLethalTaxon::Model::Model(const Parameters p): pImpl(new Impl(p, generator)){}
+SyntheticLethalTaxon::Model::Model(const Parameters p): pImpl(new Impl(p)){}
 
 SyntheticLethalTaxon::Gene::Gene(const vector<bool> b): seqbinary(b){}
 
@@ -48,7 +48,6 @@ SyntheticLethalTaxon::Gene SyntheticLethalTaxon::Gene::mutate(const double mutat
 }
 
 SyntheticLethalTaxon::Gene SyntheticLethalTaxon::Gene::mutate(bool& mutated, const double mutationRate, const double pressure) const{
-	// r' = r / (1 - p)
 	vector<bool> seqb = seqbinary;
 	int L = seqbinary.size() / 2;
 	double q = 1 - mutationRate;
