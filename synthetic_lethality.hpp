@@ -11,11 +11,21 @@ class SyntheticLethalTaxon: public Taxon{
 		Gene(const string);
 		Gene(const vector<bool>);
 		double similarity(const Gene, const Gene, const vector<double> condonweight) const; // aa similarity
+		/*
+			= SUM BLOSUM62((3kmer in Gene1 -> aa), (3kmer in Gene2 -> aa)) * condonweight
+			special case 1st aa != M -> similarity = -OO
+						last aa != Stop -> Similarity = -OO
+						other than last aa == Stop -> Similarity = -OO
+		*/
 		Gene mutate() const; // mutate one base
 		Gene mutate(const double mutationRate) const;
 		Gene mutate(bool& mutated, const double mutationRate, const double pressure) const;
 		
 		const vector<bool> seqbinary;
+		/*
+		00 -> A; 01 -> C; 10 -> G; 11 -> T
+		00011011 -> ACGT
+		*/
 	};
 	
 	struct Model{
@@ -24,8 +34,19 @@ class SyntheticLethalTaxon: public Taxon{
 		
 		Model(const Parameters);
 		const shared_ptr<Gene> geneTarget(int condition, int geneId) const;
+		/*
+		Random: requirments:
+			NOW ASSUME condition = 0
+			same condition && same geneid -> same target
+			diff condition && same geneid -> similar target (TBD)
+			1st aa = M
+			last aa = stop
+			other than last != stop
+		*/
 		const vector<double> condonweight(int condition, int geneId) const;
+		/*
 		
+		*/
 		const vector<double> mutationRates(int condition, const vector<double> similarities) const;
 		const vector<double> mutationProbabilities(int condition, const vector<double> similarities) const;
 		double occupany(int condition, const vector<double> similarities) const;
