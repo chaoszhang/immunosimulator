@@ -156,19 +156,6 @@ struct Arguments{
 		}
 	}
 } const ARG("arguments.txt");
-// birth rate = 6 hours
-// mutation rate = 2.7e-9 per bp per cell division
-// hypermutation 8e-4 per bp per cell divison
-//const string HTARGET1 = "EVQLVESGGGLVQPGGSLRLSCAASGFNFRSYWMTWVRQAPGKGLEWVAKIRQEGDEIYYVESVKGRFTISRDNAKNSLFLQMNSLRVEDTAVYYCARRASYGDYAVQVNPWFDPWGQGTLVTVSS";
-//const string HTARGET2 = "EVQLVESGGGLVQPGGSLRLSCAASGFSFRNYWMGWVRQAPGKGLEWVANIYQDGSDKYYVDSVKGRFTISRDNAKNSLYLQLNSLRVEDTAVYYCARRGSYGDYAVQVNNWFDRWGQGTLVTVSS";
-//const string HTARGET3 = "EVQLVESGGGLVQPGGSLRLSCAASGFTFRSYWMSWVRQAPGKGLEWVANIYQDGSEKYYVDSVKGRFTISRDNAKNSLYLQMNSLRVEDTAVYYCARRGSYGDYAVQINNWFDRWGQGTLVTVSS";
-//const string HTARGET4 = "EVQLVESGGGLVQPGGSLRLSCAASGFSFRSYWMSWVRQAPGKGLEWVANIYQDGSFQYYLDSVKGRFTISRDNANKSLFLQMNSLRVEDTAVYYCARRGSYGDYAVQVNSWFDTWGQGTLVTVSS";
-//const string HTARGET5 = "EVQLVESGGGLVQPGGSLRLSCAASGFTFRSYWMSWVRQAPGKGLEWVANIYQDGSEKYYVDSVKGRFTISRDNAKNSLYLQMNSLRVEDTAVYYCARRGSYGDYAVQINNWFDRWGQGTLVTVSS";
-//const string HTARGET6 = "EVQLVESGGGLVQPGGSLRLSCVASGFSFRSYWMSWVRQAPGKGLEWVANIYQDGSNQYYVDSVKGRFTISRDNANKSLFLQMNSLRGEDTAVYYCARRGSYGDYAVQINSWFDRWGRGTLVTVSS";
-//const string HTARGET7 = "EVQLVESGGGLVQPGGSLRLSCEASGFNFRSYWMSWVRQAPGKGLEWVANIYQDGSEQYYVDSVKGRFTISRDNARNSVYLQMNSLRAEDTAVYYCARRGSYGDYSVRVNSWFDLWGQGTLVTVSS";
-//const string HTARGET8 = "EVQLVESGGGLVQPGGSLRLSCAASGFSFRSYWMSWVRQAPGKGLEWVANIYQDGSDQYYADSVKGRFTISRDNANKSLFLQMNSLRVDDTAVYYCARRGSYGDYAVQVNSWFDTWGQGTLVTVSS";
-//const string HTARGET9 = "EVQLVESGGGLVQPGGSLRLSCVASGFSFRSYWMSWVRQAPGKGLEWVANIYQDGSTQYYVDSVKGRFTISRDNAKNSLFLQMNSLRVEDTAVYYCARRGSYGDYAVQVNSWFDRWGRGTLVTVSS";
-//const string HTARGET10 = "EVQLVESGGGLVQPGGSLRLSCAASGFSFRNYWMGWVRQAPGKGLEWVANIYQDGSEKYYVDSVKGRFTISRDNAKNSLYLQLNSLRVEDTAVYYCARRGSYGDYAVQVNNWFDRWGQGTLVTVSS";
 
 class FiveMerModel {
 	unordered_map<string, array<double, 4> > p5, p4l, p4r, p3l, p3r;
@@ -417,7 +404,10 @@ public:
 	double getBirthRate(int condition) const override{
 		if (condition == 0) return ARG.NORMAL_BIRTH_RATE;
 		else if (nonSense) return 0;
-		else if (isMemoryCell) return ARG.NORMAL_BIRTH_RATE;
+		else if (isMemoryCell) {
+			const string HTARGET = ARG.HTARGET[condition - 1];
+			return ARG.MUTATION_FROM_MEMORY_CELL_RATE_FACTOR * exp(-(score(HTARGET, HTARGET) - score(translate(decodeDNA(HF)), HTARGET)) * ARG.AFFINITY_ACTIVATION_FACTOR);
+		}
 		else return ARG.INFACTED_BIRTH_RATE;
 	}
 	
@@ -432,11 +422,8 @@ public:
 	}
 	
 	double getLifeTimeMutationRate(int condition) const override{
-		if (condition == 0) return 0;
 		if (!isMemoryCell) return ARG.MUTATION_TO_MEMORY_CELL_RATE;
-		const string HTARGET = ARG.HTARGET[condition - 1];
-		if (nonSense) return 0;
-		return ARG.MUTATION_FROM_MEMORY_CELL_RATE_FACTOR * exp(-(score(HTARGET, HTARGET) - score(translate(decodeDNA(HF)), HTARGET)) * ARG.AFFINITY_ACTIVATION_FACTOR);
+		return 0;
 	}
 	
 	Taxon* mutateLifeTime(int conditon) const override{
@@ -445,8 +432,11 @@ public:
 	
 	double getBirthMutationProbability(int condition) const override{
 		string h = decodeDNA(HF);
-		if (condition == 0 || isMemoryCell) {
+		if (condition == 0){
 			return 1 - pow(1 - ARG.NORMAL_MUTATION_RATE, 2 * h.length());
+		}
+		else if (isMemoryCell) {
+			return 1;
 		}
 		else {
 			vector<array<double, 4> > p = model.mutationProbabilities(h);
@@ -463,7 +453,7 @@ public:
 		bool mutated = false;
 		vector<double> p1(h1.length()), p2(h2.length());
 		
-		if (condition == 0 || isMemoryCell){
+		if (condition == 0){
 			p2[h2.length() - 1] = 1 - ARG.NORMAL_MUTATION_RATE;
 			for (int i = h2.length() - 2; i >= 0; i--){
 				p2[i] = p2[i + 1] * (1 - ARG.NORMAL_MUTATION_RATE);
@@ -500,6 +490,9 @@ public:
 					}
 				}
 			}
+		}
+		else if (isMemoryCell){
+			return {newBCell(h, true, true), newBCell(h, false, false)};
 		}
 		else {
 			vector<array<double, 4> > p = model.mutationProbabilities(h);
@@ -624,53 +617,97 @@ double cntMemory(Taxon &t){
 	return (b.isMemoryCell) ? 1 : 0;
 }
 
-double cntNonmemory(Taxon &t){
-	BCell &b = (BCell &) t;
-	return (b.isMemoryCell) ? 0 : 1;
-}
-
 int main(int argc, char** argv){
+	generator.seed(7);
 	vector<double> conditionTime;
 	cerr << BCell::translate(ARG.STARTING_DNA) << endl;
 	Simulator s(vector<tuple<Taxon*, Taxon*, int, double> >({
-		make_tuple<Taxon*, Taxon*, int, double>(new BCellHomoplasy(ARG.STARTING_DNA), nullptr, 100, 0.0)
+		make_tuple<Taxon*, Taxon*, int, double>(new BCell/*Homoplasy*/(ARG.STARTING_DNA, true), nullptr, 1, 0.0)
 	}), 0.0, 0, 1);
 	s.debugInfo(getInfo);
-	s.switchCondition(1);
 	{
-	while (true){
-		double q = s.getTotalOccupancy() / s.debugSum(cntNonmemory);
-		if (q < 0.021059243420557826) break;
-		cerr << "Average Affinity: " << q << endl;
-		s.simulate(ARG.TIME_INTERVAL);
-		s.debugInfo();
-		cerr << "Memory Cell Count: " << s.debugSum(cntMemory) << endl;
-		if(s.getNumPop() == 0){
-			cerr << "All dead.";
-			return 0;
+	ofstream fout("year_by_year.sif");
+	double endofyear = 364;
+	int year = 1999;
+	for (int i = 1; i <= ARG.NUM_TARGETS; i++){
+		s.switchCondition(i);
+		while (s.getTotalOccupancy() < ARG.AFFINITY_THRESHOLD && s.getTime() < ARG.SWITCHING_TIME[i - 1]){
+			s.simulate(min(ARG.TIME_INTERVAL, ARG.SWITCHING_TIME[i - 1] - s.getTime()));
+			s.debugInfo();
+			cerr << "Memory Cell Count: " << s.debugSum(cntMemory) << endl;
+			if(s.getNumPop() == 0){
+				cerr << "All dead.";
+				return 0;
+			}
+		}
+		s.switchCondition(0);
+		while (s.getTime() < ARG.SWITCHING_TIME[i - 1]){
+			s.simulate(min(ARG.TIME_INTERVAL0, ARG.SWITCHING_TIME[i - 1] - s.getTime()));
+			s.debugInfo();
+			cerr << "Memory Cell Count: " << s.debugSum(cntMemory) << endl;
+		}
+		conditionTime.push_back(s.getTime());
+		if (s.getTime() > endofyear){
+			vector<tuple<Population*, Population*, long long> > sample = s.sampleCondensed(20);
+			for (auto &e: sample){
+				fout << get<1>(e)->getTaxon() << " " << year << ((get<2>(e)) ? "_p_" : "_n_") << BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF) << " " << get<0>(e)->getTaxon() << endl;
+			}
+			endofyear += 365;
+			year++;
 		}
 	}
-	while (true){
-		double q = s.getTotalOccupancy() / s.debugSum(cntNonmemory);
-		if (q >= 0.021059243420557826) break;
-		cerr << "Average Affinity: " << q << endl;
-		s.simulate(ARG.TIME_INTERVAL);
-		s.debugInfo();
-		cerr << "Memory Cell Count: " << s.debugSum(cntMemory) << endl;
-		if(s.getNumPop() == 0){
-			cerr << "All dead.";
-			return 0;
+	}
+	{
+		ofstream fout("1.sif");
+		for (auto &e: s.sampleCondensed(ARG.SAMPLE_SIZE)){
+			fout << get<1>(e)->getTaxon() << " " << ((get<2>(e)) ? "p_" : "n_") << BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF) << " " << get<0>(e)->getTaxon() << endl;
 		}
 	}
-	vector<tuple<Population*, Population*, long long> > sample = s.sample(ARG.SAMPLE_SIZE);
 	{
-		ofstream fout("sample_mid.sif");
+		ofstream fout("2.sif");
+		for (auto &e: s.sampleCondensed(ARG.SAMPLE_SIZE)){
+			fout << get<1>(e)->getTaxon() << " " << ((get<2>(e)) ? "p_" : "n_") << BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF) << " " << get<0>(e)->getTaxon() << endl;
+		}
+	}
+	{
+		ofstream fout("3.sif");
+		for (auto &e: s.sampleCondensed(ARG.SAMPLE_SIZE)){
+			fout << get<1>(e)->getTaxon() << " " << ((get<2>(e)) ? "p_" : "n_") << BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF) << " " << get<0>(e)->getTaxon() << endl;
+		}
+	}
+	{
+		ofstream fout("4.sif");
+		for (auto &e: s.sampleCondensed(ARG.SAMPLE_SIZE)){
+			fout << get<1>(e)->getTaxon() << " " << ((get<2>(e)) ? "p_" : "n_") << BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF) << " " << get<0>(e)->getTaxon() << endl;
+		}
+	}
+	{
+		ofstream fout("5.sif");
+		for (auto &e: s.sampleCondensed(ARG.SAMPLE_SIZE)){
+			fout << get<1>(e)->getTaxon() << " " << ((get<2>(e)) ? "p_" : "n_") << BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF) << " " << get<0>(e)->getTaxon() << endl;
+		}
+	}
+	{
+		ofstream fout("6.sif");
+		for (auto &e: s.sampleCondensed(ARG.SAMPLE_SIZE)){
+			fout << get<1>(e)->getTaxon() << " " << ((get<2>(e)) ? "p_" : "n_") << BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF) << " " << get<0>(e)->getTaxon() << endl;
+		}
+	}
+	{
+		ofstream fout("7.sif");
+		for (auto &e: s.sampleCondensed(ARG.SAMPLE_SIZE)){
+			fout << get<1>(e)->getTaxon() << " " << ((get<2>(e)) ? "p_" : "n_") << BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF) << " " << get<0>(e)->getTaxon() << endl;
+		}
+	}
+	vector<tuple<Population*, Population*, long long> > sample = s.sampleCondensed(ARG.SAMPLE_SIZE);
+	{
+		ofstream fout("sample.sif");
 		for (auto &e: sample){
-			fout << BCell::decodeDNA(((BCell*) get<1>(e)->getTaxon())->HF) << " parent_of " << BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF) << endl;
+			fout << get<1>(e)->getTaxon() << " " << ((get<2>(e)) ? "p_" : "n_") << BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF) << " " << get<0>(e)->getTaxon() << endl;
 		}
 	}
 	{
-		ofstream fout("sample_mutation_mid.sif");
+		ofstream fout("sample_mutation.sif");
 		for (auto &e: sample){
 			string p = BCell::decodeDNA(((BCell*) get<1>(e)->getTaxon())->HF);
 			string c = BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF);
@@ -683,7 +720,7 @@ int main(int argc, char** argv){
 		}
 	}
 	{
-		ofstream fout("sample_mutation_position_mid.sif");
+		ofstream fout("sample_mutation_position.sif");
 		for (auto &e: sample){
 			string p = BCell::decodeDNA(((BCell*) get<1>(e)->getTaxon())->HF);
 			string c = BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF);
@@ -696,7 +733,7 @@ int main(int argc, char** argv){
 		}
 	}
 	{
-		ofstream fout("sample_condition_mid.sif");
+		ofstream fout("sample_condition.sif");
 		for (auto &e: sample){
 			string p = BCell::decodeDNA(((BCell*) get<1>(e)->getTaxon())->HF);
 			string c = BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF);
@@ -710,92 +747,6 @@ int main(int argc, char** argv){
 			}
 			fout << " " << c << endl;
 		}
-	}
-	{
-		ofstream fout("sample_mid.txt");
-		int cnt = 0;
-		for (auto &e: sample){
-			if (get<2>(e) == 0) continue;
-			string c = BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF);
-			cnt++;
-			fout << ">sample_mid_" << cnt << "_count_" << get<2>(e) << endl;
-			fout << c << endl;
-		}
-	}
-	}
-	{
-	while (true){
-		double q = s.getTotalOccupancy() / s.debugSum(cntNonmemory);
-		if (q >= 0.393050772757353) break;
-		cerr << "Average Affinity: " << q << endl;
-		s.simulate(ARG.TIME_INTERVAL);
-		s.debugInfo();
-		cerr << "Memory Cell Count: " << s.debugSum(cntMemory) << endl;
-		if(s.getNumPop() == 0){
-			cerr << "All dead.";
-			return 0;
-		}
-	}
-	vector<tuple<Population*, Population*, long long> > sample = s.sample(ARG.SAMPLE_SIZE);
-	{
-		ofstream fout("sample_end.sif");
-		for (auto &e: sample){
-			fout << BCell::decodeDNA(((BCell*) get<1>(e)->getTaxon())->HF) << " parent_of " << BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF) << endl;
-		}
-	}
-	{
-		ofstream fout("sample_mutation_end.sif");
-		for (auto &e: sample){
-			string p = BCell::decodeDNA(((BCell*) get<1>(e)->getTaxon())->HF);
-			string c = BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF);
-			
-			fout << p << " _";
-			for (int i = 0; i < p.size(); i++){
-				if (p[i] != c[i]) fout << i << p[i] << c[i];
-			}
-			fout << "_ " << c << endl;
-		}
-	}
-	{
-		ofstream fout("sample_mutation_position_end.sif");
-		for (auto &e: sample){
-			string p = BCell::decodeDNA(((BCell*) get<1>(e)->getTaxon())->HF);
-			string c = BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF);
-			
-			fout << p << " _";
-			for (int i = 0; i < p.size(); i++){
-				if (p[i] != c[i]) fout << i;
-			}
-			fout << "_ " << c << endl;
-		}
-	}
-	{
-		ofstream fout("sample_condition_end.sif");
-		for (auto &e: sample){
-			string p = BCell::decodeDNA(((BCell*) get<1>(e)->getTaxon())->HF);
-			string c = BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF);
-			
-			fout << p << " ";
-			for (int i = 0; i < conditionTime.size(); i++){
-				if (get<0>(e)->getTimeOfEmergence() < conditionTime[i]){
-					fout << i + 1;
-					break;
-				}
-			}
-			fout << " " << c << endl;
-		}
-	}
-	{
-		ofstream fout("sample_end.txt");
-		int cnt = 0;
-		for (auto &e: sample){
-			if (get<2>(e) == 0) continue;
-			string c = BCell::decodeDNA(((BCell*) get<0>(e)->getTaxon())->HF);
-			cnt++;
-			fout << ">sample_end_" << cnt << "_count_" << get<2>(e) << endl;
-			fout << c << endl;
-		}
-	}
 	}
 	return 0;
 }

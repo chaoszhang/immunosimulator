@@ -244,17 +244,14 @@ class Simulator{
 	const double precision;
 	int nPop = 0, condition = 0;
 	double time = 0.0;
-	double totalOccupancyIndependentEventRate = 0.0, totalOccupancyEventRateFactor = 0.0, totalOccupancy = 0.0;
-	vector<double> occupancy;
 	vector<Population*> popList;
 	vector<int> emptySpot;
-	IntervalTree occupancyIndependentIntervalTree, occupancyFactorIntervalTree;
+	IntervalTree occupancyIndependentIntervalTree, occupancyFactorIntervalTree, occupancyIntervalTree;
 	unordered_map<Population*, int, PopulationPointerHash, PopulationPointerEq> popPos;
 	unordered_map<Taxon*, Population*, TaxonPointerHash, TaxonPointerEq> popSet;
 	
 	void clear(){
-		totalOccupancyIndependentEventRate = totalOccupancyEventRateFactor = totalOccupancy = 0.0;
-		for (double &v: occupancy) v = 0;
+		occupancyIntervalTree.clear();
 		occupancyIndependentIntervalTree.clear();
 		occupancyFactorIntervalTree.clear();
 	}
@@ -271,7 +268,7 @@ class Simulator{
 		else {
 			int pos = popList.size();
 			popList.push_back(pop);
-			occupancy.push_back(0);
+			occupancyIntervalTree.append(0);
 			occupancyIndependentIntervalTree.append(0);
 			occupancyFactorIntervalTree.append(0);
 			popPos[pop] = pos;
@@ -307,17 +304,17 @@ class Simulator{
 	
 	bool proceedToNextEvent(){
 		if (nPop == 0) return false;
-		double r = uniform(generator) * (totalOccupancyIndependentEventRate + totalOccupancyEventRateFactor * totalOccupancy);
-		int i = (r < totalOccupancyIndependentEventRate) ? occupancyIndependentIntervalTree.sample() : occupancyFactorIntervalTree.sample();
+		double r = uniform(generator) * (getTotalOccupancyIndependentEventRate() + getTotalOccupancyEventRateFactor() * getTotalOccupancy());
+		int i = (r < getTotalOccupancyIndependentEventRate()) ? occupancyIndependentIntervalTree.sample() : occupancyFactorIntervalTree.sample();
 		Population* pop = popList[i];
 		while (pop == nullptr){
 			cerr << "Simulator::proceedToNextEvent(): pop null pointer exception; retry.\n";
 			cerr << "@i = " << i << endl;
-			r = uniform(generator) * (totalOccupancyIndependentEventRate + totalOccupancyEventRateFactor * totalOccupancy);
-			i = (r < totalOccupancyIndependentEventRate) ? occupancyIndependentIntervalTree.sample() : occupancyFactorIntervalTree.sample();
+			r = uniform(generator) * (getTotalOccupancyIndependentEventRate() + getTotalOccupancyEventRateFactor() * getTotalOccupancy());
+			i = (r < getTotalOccupancyIndependentEventRate()) ? occupancyIndependentIntervalTree.sample() : occupancyFactorIntervalTree.sample();
 			pop = popList[i];
 		}
-		int event = pop->randomEvent(totalOccupancy, precision);
+		int event = pop->randomEvent(getTotalOccupancy(), precision);
 		if (event == REGULAR_BIRTH_EVENT){
 			adjustPopSize(pop, pop->getBatchSize(precision));
 		}
@@ -349,30 +346,27 @@ public:
 	}
 	
 	double getTotalOccupancy() const{
-		return totalOccupancy;
+		return occupancyIntervalTree.getSum();
 	}
 	
 	void setOccupancy(int i, double v){
-		totalOccupancy += v - occupancy[i];
-		occupancy[i] = v;
+		occupancyIntervalTree.set(i, v);
 	}
 	
 	double getTotalOccupancyIndependentEventRate() const{
-		return totalOccupancyIndependentEventRate;
+		return occupancyIndependentIntervalTree.getSum();
 	}
 	
 	void setOccupancyIndependentEventRate(int i, double v){
 		occupancyIndependentIntervalTree.set(i, v);
-		totalOccupancyIndependentEventRate = occupancyIndependentIntervalTree.getSum();
 	}
 	
 	double getTotalOccupancyEventRateFactor() const{
-		return totalOccupancyEventRateFactor;
+		return occupancyFactorIntervalTree.getSum();
 	}
 	
 	void setOccupancyEventRateFactor(int i, double v){
 		occupancyFactorIntervalTree.set(i, v);
-		totalOccupancyEventRateFactor = occupancyFactorIntervalTree.getSum();
 	} 
 	
 	Simulator(vector<tuple<Taxon*, Taxon*, int, double> > startPop, double precision = 0, double time = 0, int condition = 0): condition(condition), precision(precision), time(time){
@@ -408,7 +402,7 @@ public:
 	void simulate(double duration){
 		double endTime = time + duration;
 		while (nPop != 0){
-			double step = exponential(generator) / (totalOccupancyIndependentEventRate + totalOccupancyEventRateFactor * totalOccupancy);
+			double step = exponential(generator) / (getTotalOccupancyIndependentEventRate() + getTotalOccupancyEventRateFactor() * getTotalOccupancy());
 			if (time + step > endTime) break;
 			time += step;
 			proceedToNextEvent();
@@ -434,14 +428,10 @@ public:
 	}
 	
 	vector<tuple<Population*, Population*, long long> > sample(int sampleSize){
-		long long popCnt = 0;
 		IntervalTree sampleIntervalTree;
 		for (Population* p: popList){
 			if (p == nullptr) sampleIntervalTree.append(0);
-			else {
-				sampleIntervalTree.append(p->getSize());
-				popCnt += p->getSize();
-			}
+			else sampleIntervalTree.append(p->getSize());
 		}
 		unordered_map<int, long long> sampleCnt;
 		for (int i = 0; i < sampleSize; i++){
@@ -455,7 +445,10 @@ public:
 		while (!q.empty()){
 			tuple<Population*, Population*, long long> a = q.top();
 			q.pop();
-			if (!q.empty() && PopulationPointerEq()(get<1>(a), get<1>(q.top()))){
+			if (!q.empty() && PopulationPointerEq()(get<0>(a), get<0>(q.top()))){
+				long long cnt = get<2>(q.top());
+				q.pop();
+				q.push(make_tuple(get<0>(a), get<1>(a), get<2>(a) + cnt));
 				continue;
 			}
 			else {
@@ -464,6 +457,7 @@ public:
 					q.push(make_tuple(p, p, 0));
 					result.push_back(make_tuple(get<0>(a), p, get<2>(a)));
 				}
+				else if (get<2>(a) != 0) result.push_back(make_tuple(get<0>(a), get<0>(a), get<2>(a)));
 			}
 		}
 		return result;
@@ -511,7 +505,9 @@ public:
 			else {
 				Population* p = get<1>(a)->getAncestor();
 				if (p != nullptr) q.push(make_tuple(get<0>(a), p, get<2>(a)));
-				else if (!PopulationPointerEq()(get<0>(a), get<1>(a))) result.push_back(make_tuple(get<0>(a), get<1>(a), get<2>(a)));
+				else {
+					if (!PopulationPointerEq()(get<0>(a), get<1>(a))) result.push_back(make_tuple(get<0>(a), get<1>(a), get<2>(a)));
+				}
 			}
 		}
 		return result;
@@ -523,7 +519,7 @@ public:
 			if (p == nullptr) continue;
 			popCnt += p->getSize();
 		}
-		cerr << "Taxon_count: " << nPop << "\tCurrent_time: " << time << "\tTotal_occupancy: " << totalOccupancy << "\tCondition: " << condition << "\tTotal_population: " << popCnt << endl;
+		cerr << "Taxon_count: " << nPop << "\tCurrent_time: " << time << "\tTotal_occupancy: " << getTotalOccupancy() << "\tCondition: " << condition << "\tTotal_population: " << popCnt << endl;
 	}
 	
 	void debugInfo(string getInfo(Taxon&)) const{
