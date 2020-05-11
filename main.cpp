@@ -560,6 +560,7 @@ public:
 		}
 	}
 };
+std::hash<string> BCell::str_hash = std::hash<string>();
 
 class BCellHomoplasy: public BCell{
 	int id;
