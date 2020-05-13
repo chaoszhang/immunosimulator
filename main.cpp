@@ -2,6 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <array>
 #include "simulator.hpp"
 
 using namespace std;
