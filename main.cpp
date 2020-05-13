@@ -3,6 +3,7 @@
 #include <sstream>
 #include <vector>
 #include <array>
+#include <cstdlib>
 #include "simulator.hpp"
 
 using namespace std;
